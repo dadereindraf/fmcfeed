@@ -41,7 +41,7 @@ def create_workbook(df):
     # Fungsi untuk menambahkan tabel ke sheet
     def add_table_to_sheet(ws, table_name, group):
         ws.append([f"TABLE NAME: {table_name}"])
-        ws.append(["TABLE NAME", "DATE TRANSACTION", "DATE AVAILABILITY", "NOW SIZE CONDITION"])
+        ws.append(["TABLE NAME", "DATE TRANSACTION", "DATE AVAILABILITY", "TIME AVAILABILITY","NOW SIZE CONDITION"])
         for row in group.values.tolist():
             ws.append(row)
         ws.append([])
