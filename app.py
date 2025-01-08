@@ -92,14 +92,14 @@ def format_excel_with_feeds(wb):
                 cell.font = header_font
                 cell.alignment = header_alignment
                 row += 1
-                for col in range(1, 5):
+                for col in range(1, 6):
                     cell = sheet.cell(row=row, column=col)
                     cell.fill = second_header_fill
                     cell.font = header_font
                     cell.alignment = header_alignment
                 row += 1
                 while row <= max_row and sheet.cell(row=row, column=1).value:
-                    for col in range(1, 5):
+                    for col in range(1, 6):
                         cell = sheet.cell(row=row, column=col)
                         cell.border = thin_border
                     row += 1
