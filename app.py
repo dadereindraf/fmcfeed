@@ -14,14 +14,14 @@ def process_data(file):
     for line in lines:
         parts = line.split("|")
         if len(parts) >= 5:
-            event_date = parts[1]
             table_name = parts[0]
-            start_date = parts[2]
-            end_date = parts[3]
-            value = parts[4]
-            processed_data.append([table_name, event_date, start_date, end_date, value])
+            date_transaction = parts[1]
+            date_availability = parts[2]
+            time_availability = parts[3]
+            now_size_condiion = parts[4]
+            processed_data.append([table_name, date_transaction, date_availability, time_availability, now_size_condiion])
 
-    df = pd.DataFrame(processed_data, columns=["TABLE NAME", "EVENT DATE", "DATE TRANSACTION", "DATE AVAILABILITY", "NOW SIZE CONDITION"])
+    df = pd.DataFrame(processed_data, columns=["TABLE NAME", "DATE TRANSACTION", "DATE AVAILABILITY", "TIME AVAILABILITY", "NOW SIZE CONDITION"])
     return df
 
 # Fungsi untuk membuat workbook dengan sheet Main, Daily, Weekly, Monthly, dan Billing
@@ -41,7 +41,7 @@ def create_workbook(df):
     # Fungsi untuk menambahkan tabel ke sheet
     def add_table_to_sheet(ws, table_name, group):
         ws.append([f"TABLE NAME: {table_name}"])
-        ws.append(["TABLE NAME", "DATE TRANSACTION", "DATE AVAILABILITY", "NOW SIZE CONDITION"])
+        ws.append(["TABLE NAME", "DATE TRANSACTION", "DATE AVAILABILITY", "TIME AVAILABILITY","NOW SIZE CONDITION"])
         for row in group.values.tolist():
             ws.append(row)
         ws.append([])
