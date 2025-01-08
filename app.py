@@ -83,10 +83,16 @@ def format_excel_with_feeds(wb):
     for sheet_name in wb.sheetnames:
         sheet = wb[sheet_name]
         max_row = sheet.max_row
+
+        # Atur lebar kolom otomatis
+        for col_num, col_cells in enumerate(sheet.columns, start=1):
+            max_length = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
+            sheet.column_dimensions[get_column_letter(col_num)].width = max_length + 2
+
         row = 1
         while row <= max_row:
             if sheet.cell(row=row, column=1).value:
-                sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
+                sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
                 cell = sheet.cell(row=row, column=1)
                 cell.fill = first_header_fill
                 cell.font = header_font
