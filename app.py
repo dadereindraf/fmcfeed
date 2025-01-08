@@ -13,16 +13,15 @@ def process_data(file):
     processed_data = []
     for line in lines:
         parts = line.split("|")
-        if len(parts) >= 6:  # Tambahkan kolom TIME AVAILABILITY
+        if len(parts) >= 5:
             event_date = parts[1]
             table_name = parts[0]
             start_date = parts[2]
             end_date = parts[3]
-            time_availability = parts[4]
-            value = parts[5]
-            processed_data.append([table_name, event_date, start_date, end_date, time_availability, value])
+            value = parts[4]
+            processed_data.append([table_name, event_date, start_date, end_date, value])
 
-    df = pd.DataFrame(processed_data, columns=["TABLE NAME", "EVENT DATE", "DATE TRANSACTION", "DATE AVAILABILITY", "TIME AVAILABILITY", "NOW SIZE CONDITION"])
+    df = pd.DataFrame(processed_data, columns=["TABLE NAME", "EVENT DATE", "DATE TRANSACTION", "DATE AVAILABILITY", "NOW SIZE CONDITION"])
     return df
 
 # Fungsi untuk membuat workbook dengan sheet Main, Daily, Weekly, Monthly, dan Billing
@@ -42,7 +41,7 @@ def create_workbook(df):
     # Fungsi untuk menambahkan tabel ke sheet
     def add_table_to_sheet(ws, table_name, group):
         ws.append([f"TABLE NAME: {table_name}"])
-        ws.append(["TABLE NAME", "DATE TRANSACTION", "DATE AVAILABILITY", "TIME AVAILABILITY", "NOW SIZE CONDITION"])
+        ws.append(["TABLE NAME", "DATE TRANSACTION", "DATE AVAILABILITY", "NOW SIZE CONDITION"])
         for row in group.values.tolist():
             ws.append(row)
         ws.append([])
@@ -87,20 +86,20 @@ def format_excel_with_feeds(wb):
         row = 1
         while row <= max_row:
             if sheet.cell(row=row, column=1).value:
-                sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+                sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
                 cell = sheet.cell(row=row, column=1)
                 cell.fill = first_header_fill
                 cell.font = header_font
                 cell.alignment = header_alignment
                 row += 1
-                for col in range(1, 6):
+                for col in range(1, 5):
                     cell = sheet.cell(row=row, column=col)
                     cell.fill = second_header_fill
                     cell.font = header_font
                     cell.alignment = header_alignment
                 row += 1
                 while row <= max_row and sheet.cell(row=row, column=1).value:
-                    for col in range(1, 6):
+                    for col in range(1, 5):
                         cell = sheet.cell(row=row, column=col)
                         cell.border = thin_border
                     row += 1
