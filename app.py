@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
+import calendar
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -31,7 +32,6 @@ def process_data(file):
             time_availability = parts[3]
             now_size_condition = parts[4]
 
-            # Tambahkan kolom baru
             sla_date = "D+1"
             processed_data.append([
                 table_name, sla_date, date_transaction, date_availability,
@@ -43,17 +43,69 @@ def process_data(file):
         "TIME AVAILABILITY", "NOW SIZE CONDITION"
     ])
 
+    # --- Tambahkan tanggal yang hilang untuk setiap TABLE NAME ---
+    all_filled = []
+    for table, group in df.groupby("TABLE NAME"):
+        # pastikan date_transaction valid
+        group["DATE TRANSACTION"] = pd.to_datetime(group["DATE TRANSACTION"], errors="coerce")
+
+        # abaikan kalau semua tanggal invalid
+        valid_dates = group["DATE TRANSACTION"].dropna()
+        if valid_dates.empty:
+            all_filled.append(group)
+            continue
+
+        # ambil bulan & tahun dari tanggal terkecil
+        year = valid_dates.dt.year.min()
+        month = valid_dates.dt.month.min()
+
+        # buat rentang tanggal lengkap dari 1 sampai akhir bulan
+        _, last_day = calendar.monthrange(year, month)
+        all_days = pd.date_range(start=f"{year}-{month:02d}-01", end=f"{year}-{month:02d}-{last_day:02d}")
+
+        # cari tanggal yang belum ada
+        missing_days = [d for d in all_days if d not in valid_dates.values]
+
+        # buat dataframe untuk tanggal yang hilang
+        if missing_days:
+            new_rows = pd.DataFrame({
+                "TABLE NAME": table,
+                "SLA DATE": "D+1",
+                "DATE TRANSACTION": missing_days,
+                "DATE AVAILABILITY": "",
+                "TIME AVAILABILITY": "",
+                "NOW SIZE CONDITION": ""
+            })
+            group = pd.concat([group, new_rows], ignore_index=True)
+
+        # urutkan lagi berdasarkan tanggal
+        group = group.sort_values("DATE TRANSACTION").reset_index(drop=True)
+        all_filled.append(group)
+
+    df = pd.concat(all_filled, ignore_index=True)
+
+    # ubah kolom DATE TRANSACTION kembali ke string (yyyy-mm-dd)
+    df["DATE TRANSACTION"] = df["DATE TRANSACTION"].dt.strftime("%Y-%m-%d")
+
     # --- Hitung kolom COMPLETENESS ---
     df["COMPLETENESS"] = df["TIME AVAILABILITY"].apply(
         lambda x: "NOT MET" if pd.isna(x) or str(x).strip() in ["", "-"] else "MET"
     )
 
     # --- Hitung kolom TIMELINESS ---
+    def try_parse_date(value):
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(str(value), fmt).date()
+            except:
+                pass
+        return None
+
     def check_timeliness(row):
         date_trans = try_parse_date(row["DATE TRANSACTION"])
         date_avail = try_parse_date(row["DATE AVAILABILITY"])
         sla_val = row["SLA DATE"]
-        sla_days = 1  # default D+1
+        sla_days = 1
         if isinstance(sla_val, str) and sla_val.startswith("D+"):
             try:
                 sla_days = int(sla_val.replace("D+", ""))
