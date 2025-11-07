@@ -133,7 +133,7 @@ def save_workbook_to_bytes(wb):
     return output
 
 # Streamlit UI
-st.title("📊 Data Processing and Excel Export with Colors")
+st.title("📊 Data Processing and Excel Export with Colors V2")
 st.write("Upload a `data.txt` file to process and download a formatted Excel file.")
 
 uploaded_file = st.file_uploader("Choose a file", type="txt")
