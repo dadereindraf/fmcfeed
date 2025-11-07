@@ -26,7 +26,7 @@ def process_data(file):
         parts = line.split("|")
         if len(parts) >= 5:
             table_name = parts[0]
-            date_transaction = parts[1]
+            date_transaction = parts[1].replace("event_date=", "").strip()
             date_availability = parts[2]
             time_availability = parts[3]
             now_size_condition = parts[4]
