@@ -7,15 +7,68 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
+# =========================================================================
+# KONFIGURASI SLA & CADENCE PER TABEL
+# =========================================================================
+# "cadence" menentukan sheet tujuan (Daily / Weekly / Monthly / Billing)
+# "sla_label" dipakai untuk kolom SLA DATE (mis. "D+2", "M+1")
+# "sla_days" dipakai untuk perhitungan TIMELINESS
+#   - untuk cadence "daily": sla_days = jumlah hari (D+N)
+#   - untuk cadence "monthly": sla_days = jumlah BULAN (M+N)
+#
+# Tabel yang tidak terdaftar di sini akan pakai DEFAULT_CONFIG di bawah.
+TABLE_CONFIG = {
+    # --- Tabel MONTHLY (M+1) ---
+    "ih_konten_internet":            {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_autocon":             {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_icloud":              {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_ihsmart":             {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_melon":               {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_movin":               {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_netflix":             {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_nvpr":                {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_plcwifiext":          {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_lisrev_svod":                {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_tibs_lisrev_addon_usee":     {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "ih_tibs_lisrev_alltv":          {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+    "poin_redeemption":              {"cadence": "monthly", "sla_label": "M+1", "sla_days": 1},
+
+    # --- Tabel DAILY dengan SLA khusus (bukan D+1) ---
+    "ih_ga_browse_offer":            {"cadence": "daily", "sla_label": "D+4", "sla_days": 4},
+    "ih_ga_order_summary":           {"cadence": "daily", "sla_label": "D+3", "sla_days": 3},
+    "ih_ga_verify_otp":              {"cadence": "daily", "sla_label": "D+3", "sla_days": 3},
+    "ih_tere_earning_poin":          {"cadence": "daily", "sla_label": "D+2", "sla_days": 2},
+    "ih_tere_trx_0poin":             {"cadence": "daily", "sla_label": "D+2", "sla_days": 2},
+    "poin_fact_detail":              {"cadence": "daily", "sla_label": "D+2", "sla_days": 2},
+}
+
+# Default untuk tabel yang tidak ada di TABLE_CONFIG -> dianggap Daily, D+1
+DEFAULT_CONFIG = {"cadence": "daily", "sla_label": "D+1", "sla_days": 1}
+
+
+def get_table_config(table_name: str) -> dict:
+    """Ambil config (cadence, sla_label, sla_days) untuk sebuah tabel.
+    Billing tetap dideteksi lewat nama, terlepas dari cadence-nya."""
+    cfg = TABLE_CONFIG.get(table_name, DEFAULT_CONFIG).copy()
+    if "bil" in table_name.lower() or "billing" in table_name.lower():
+        cfg["sheet"] = "Billing"
+    elif cfg["cadence"] == "monthly":
+        cfg["sheet"] = "Monthly"
+    else:
+        cfg["sheet"] = "Daily"
+    return cfg
+
+
 # --- Fungsi bantu untuk parsing tanggal ---
 def try_parse_date(value):
     """Coba ubah string ke datetime.date, kalau gagal return None."""
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
         try:
-            return datetime.strptime(value, fmt).date()
-        except:
+            return datetime.strptime(str(value), fmt).date()
+        except Exception:
             pass
     return None
+
 
 # --- Fungsi utama memproses data ---
 def process_data(file):
@@ -32,9 +85,9 @@ def process_data(file):
             time_availability = parts[3]
             now_size_condition = parts[4]
 
-            sla_date = "D+1"
+            cfg = get_table_config(table_name)
             processed_data.append([
-                table_name, sla_date, date_transaction, date_availability,
+                table_name, cfg["sla_label"], date_transaction, date_availability,
                 time_availability, now_size_condition
             ])
 
@@ -44,33 +97,38 @@ def process_data(file):
     ])
 
     # --- Tambahkan tanggal yang hilang untuk setiap TABLE NAME ---
+    # PENTING: hanya dilakukan untuk tabel DAILY. Tabel MONTHLY memang
+    # cuma punya 1 baris per bulan, jadi tidak boleh di-expand jadi
+    # 28-31 baris kosong (itu penyebab Monthly ketuker jadi Daily).
     all_filled = []
     for table, group in df.groupby("TABLE NAME"):
-        # pastikan date_transaction valid
+        cfg = get_table_config(table)
+        group = group.copy()
         group["DATE TRANSACTION"] = pd.to_datetime(group["DATE TRANSACTION"], errors="coerce")
 
-        # abaikan kalau semua tanggal invalid
+        if cfg["cadence"] != "daily":
+            # tabel monthly/billing non-daily: jangan di-expand per hari
+            group = group.sort_values("DATE TRANSACTION").reset_index(drop=True)
+            all_filled.append(group)
+            continue
+
         valid_dates = group["DATE TRANSACTION"].dropna()
         if valid_dates.empty:
             all_filled.append(group)
             continue
 
-        # ambil bulan & tahun dari tanggal terkecil
         year = valid_dates.dt.year.min()
         month = valid_dates.dt.month.min()
 
-        # buat rentang tanggal lengkap dari 1 sampai akhir bulan
         _, last_day = calendar.monthrange(year, month)
         all_days = pd.date_range(start=f"{year}-{month:02d}-01", end=f"{year}-{month:02d}-{last_day:02d}")
 
-        # cari tanggal yang belum ada
         missing_days = [d for d in all_days if d not in valid_dates.values]
 
-        # buat dataframe untuk tanggal yang hilang
         if missing_days:
             new_rows = pd.DataFrame({
                 "TABLE NAME": table,
-                "SLA DATE": "D+1",
+                "SLA DATE": cfg["sla_label"],
                 "DATE TRANSACTION": missing_days,
                 "DATE AVAILABILITY": "",
                 "TIME AVAILABILITY": "",
@@ -78,13 +136,11 @@ def process_data(file):
             })
             group = pd.concat([group, new_rows], ignore_index=True)
 
-        # urutkan lagi berdasarkan tanggal
         group = group.sort_values("DATE TRANSACTION").reset_index(drop=True)
         all_filled.append(group)
 
     df = pd.concat(all_filled, ignore_index=True)
 
-    # ubah kolom DATE TRANSACTION kembali ke string (yyyy-mm-dd)
     df["DATE TRANSACTION"] = df["DATE TRANSACTION"].dt.strftime("%Y-%m-%d")
 
     # --- Hitung kolom COMPLETENESS ---
@@ -93,29 +149,34 @@ def process_data(file):
     )
 
     # --- Hitung kolom TIMELINESS ---
-    def try_parse_date(value):
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-            try:
-                return datetime.strptime(str(value), fmt).date()
-            except:
-                pass
-        return None
-
     def check_timeliness(row):
         date_trans = try_parse_date(row["DATE TRANSACTION"])
         date_avail = try_parse_date(row["DATE AVAILABILITY"])
-        sla_val = row["SLA DATE"]
-        sla_days = 1
-        if isinstance(sla_val, str) and sla_val.startswith("D+"):
-            try:
-                sla_days = int(sla_val.replace("D+", ""))
-            except:
-                pass
+        sla_val = str(row["SLA DATE"])
 
         if not date_avail or str(row["DATE AVAILABILITY"]).strip() in ["", "-"]:
             return "NOT MET"
         if not date_trans:
             return "NOT MET"
+
+        if sla_val.startswith("M+"):
+            # SLA bulanan: bandingkan selisih bulan (year*12+month)
+            try:
+                sla_months = int(sla_val.replace("M+", ""))
+            except Exception:
+                sla_months = 1
+            months_trans = date_trans.year * 12 + date_trans.month
+            months_avail = date_avail.year * 12 + date_avail.month
+            delta_months = months_avail - months_trans
+            return "NOT MET" if delta_months > sla_months else "MET"
+
+        # SLA harian (D+N), default N=1
+        sla_days = 1
+        if sla_val.startswith("D+"):
+            try:
+                sla_days = int(sla_val.replace("D+", ""))
+            except Exception:
+                pass
 
         delta = (date_avail - date_trans).days
         return "NOT MET" if delta > sla_days else "MET"
@@ -136,6 +197,7 @@ def process_data(file):
 
     return df
 
+
 # --- Fungsi buat workbook ---
 def create_workbook(df):
     wb = Workbook()
@@ -155,17 +217,12 @@ def create_workbook(df):
             ws.append(row)
         ws.append([])
 
+    # Klasifikasi sheet sekarang berdasarkan TABLE_CONFIG (cadence asli
+    # tabel), BUKAN berdasarkan len(group) seperti sebelumnya.
     for table_name, group in df.groupby("TABLE NAME"):
-        if "bil" in table_name.lower() or "billing" in table_name.lower():
-            add_table_to_sheet(sheets["Billing"], table_name, group)
-        elif len(group) >= 10:
-            add_table_to_sheet(sheets["Daily"], table_name, group)
-        elif 1 < len(group) < 6:
-            add_table_to_sheet(sheets["Weekly"], table_name, group)
-        elif len(group) == 1:
-            add_table_to_sheet(sheets["Monthly"], table_name, group)
-        else:
-            add_table_to_sheet(sheets["Main"], table_name, group)
+        cfg = get_table_config(table_name)
+        target_sheet = sheets.get(cfg["sheet"], sheets["Main"])
+        add_table_to_sheet(target_sheet, table_name, group)
 
     # Bersihkan teks prefix
     for sheet in sheets.values():
@@ -174,6 +231,7 @@ def create_workbook(df):
                 row[0].value = row[0].value.replace("TABLE NAME: ", "")
 
     return wb
+
 
 # --- Format warna Excel ---
 def format_excel_with_feeds(wb):
@@ -221,12 +279,14 @@ def format_excel_with_feeds(wb):
                 row += 1
     return wb
 
+
 # --- Save ke BytesIO ---
 def save_workbook_to_bytes(wb):
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
     return output
+
 
 # --- Streamlit UI ---
 st.title("📊 Data Processing and Excel Export with Logic Evaluation")
