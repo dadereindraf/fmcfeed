@@ -188,9 +188,9 @@ def process_data(file):
         if row["TIMELINESS"] == "NOT MET":
             val = str(row["NOW SIZE CONDITION"]).strip()
             if val in ["", "-"]:
-                return "Source Issue"
+                return "Source Kosong"
             else:
-                return "Reprocess"
+                return "Source Update"
         return ""
 
     df["NOTE"] = df.apply(check_note, axis=1)
