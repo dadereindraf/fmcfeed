@@ -37,6 +37,8 @@ TABLE_CONFIG = {
     "ih_ga_browse_offer":            {"cadence": "daily", "sla_label": "D+4", "sla_days": 4},
     "ih_ga_order_summary":           {"cadence": "daily", "sla_label": "D+3", "sla_days": 3},
     "ih_ga_verify_otp":              {"cadence": "daily", "sla_label": "D+3", "sla_days": 3},
+    "ih_ga_feasibility_check":       {"cadence": "daily", "sla_label": "D+3", "sla_days": 3},
+    "ih_tere_transaction_redeem":    {"cadence": "daily", "sla_label": "D+2", "sla_days": 2},
     "ih_tere_earning_poin":          {"cadence": "daily", "sla_label": "D+2", "sla_days": 2},
     "ih_tere_trx_0poin":             {"cadence": "daily", "sla_label": "D+2", "sla_days": 2},
     "poin_fact_detail":              {"cadence": "daily", "sla_label": "D+2", "sla_days": 2},
