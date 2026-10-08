@@ -49,10 +49,22 @@ DEFAULT_CONFIG = {"cadence": "daily", "sla_label": "D+1", "sla_days": 1}
 
 
 def get_table_config(table_name: str) -> dict:
-    """Ambil config (cadence, sla_label, sla_days) untuk sebuah tabel.
-    Billing tetap dideteksi lewat nama, terlepas dari cadence-nya."""
+    """Ambil config (cadence, sla_label, sla_days) untuk sebuah tabel."""
     cfg = TABLE_CONFIG.get(table_name, DEFAULT_CONFIG).copy()
-    if "bil" in table_name.lower() or "billing" in table_name.lower():
+
+    name_lower = table_name.lower()
+    is_billing = (
+        name_lower.startswith("bill_")
+        or "_bill_" in name_lower
+        or "billing" in name_lower
+    )
+
+    if table_name in TABLE_CONFIG:
+        if cfg["cadence"] == "monthly":
+            cfg["sheet"] = "Monthly"
+        else:
+            cfg["sheet"] = "Daily"
+    elif is_billing:
         cfg["sheet"] = "Billing"
     elif cfg["cadence"] == "monthly":
         cfg["sheet"] = "Monthly"
